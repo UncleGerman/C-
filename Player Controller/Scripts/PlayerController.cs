@@ -3,43 +3,56 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [SerializeField] private float m_maxSpeed = 2f;
-    private Animator m_animator;
-    private Rigidbody2D m_rigibody;
+    [SerializeField] private Animator _animator;
+    [SerializeField] private Rigidbody2D _rigibody;
     private Vector2 Movement;
-    [SerializeField] private InventorySystem _inventorySystem;
+    [SerializeField] private InventoryData _inventoryData;
+    [SerializeField] private PlayerData _playerData;
 
-    private void Start()
+    private StateMachine _stateMachine;
+
+    private void Awake()
     {
-        m_animator = GetComponent<Animator>();
-        m_rigibody = GetComponent<Rigidbody2D>();
+        _stateMachine = new StateMachine();
+        _stateMachine.Initialize(new PlayerIdleState());
     }
 
-    void Update()
+    private void Update()
     {
-        float MoveX = Input.GetAxis("Horizontal");
-        m_animator.SetFloat("Horizontal", MoveX);
-        float MoveY = Input.GetAxis("Vertical");
-        m_animator.SetFloat("Vertical", MoveY);
+        if (Input.GetAxis("Horizontal") == 0 && Input.GetAxis("Horizontal") == 0)
+        {
+            _rigibody.velocity = default;
+            _stateMachine.ChangeState(new PlayerIdleState());
+        }
 
-        Movement = new Vector2(MoveX * m_maxSpeed, MoveY * m_maxSpeed);
-    }
-    
-    private void FixedUpdate()
-    {
-        m_rigibody.velocity = Movement;
+        if (Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0)
+        {
+            var playerMoveState = new PlayerMoveState();
+            var playerMovementEvent = new PlayerMovementEvent(_playerData, _animator, _rigibody, playerMoveState);
+            playerMoveState.PlayerMovementEvent = playerMovementEvent;
+            _stateMachine.ChangeState(playerMoveState);
+            _stateMachine.CurrentState.Update();
+        }
     }
 
-    void OnTriggerEnter2D(Collider2D collider)
+    public void OnTriggerEnter2D(Collider2D collider)
     {
         Item item = collider.GetComponent<Item>();
-        if (item.AssetItem == null)
+
+        if (item.AssetItem is null)
+        {
             Debug.Log("Item Data == Null");
+        } 
         else
         {
-            if (_inventorySystem.Inventory.OnEmptyPlace(item.AssetItem))
+            if (_inventoryData.InventoryEventHandler.AddItem(item.AssetItem))
+            {
                 Destroy(collider.gameObject);
+            }
             else
+            {
                 Debug.Log("Inventory Full!");
+            }
         }
     }
 }
